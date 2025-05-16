@@ -1,0 +1,40 @@
+# Binaries and build output
+*.exe
+*.out
+*.o
+*.a
+*.so
+
+# Test binary
+*.test
+
+# Go workspace and module files (if needed)
+go.work
+go.work.sum
+
+# Dependency directories (if vendored)
+vendor/
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Log and runtime files
+*.log
+
+# Temporary or cache files
+*.tmp
+*.cache
+
+# Enviorment variable
+.env
+
+# Node.js (if you add any tools)
+node_modules/
+
