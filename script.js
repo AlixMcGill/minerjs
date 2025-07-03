@@ -85,6 +85,18 @@ class Block {
 let cameraX = 0;
 let cameraY = 0;
 const cameraSpeed = .2; // in blocks
+const player = {
+    x: 4,
+    y: 4,
+    width: .5,
+    height: .5,
+    vx: 0,
+    vy: 0,
+    speed: 0.05,
+    jumpPower: -0.08,
+    gravity: 0.001,
+    grounded: false
+};
 
 const keysPressed = {};
 
@@ -96,16 +108,99 @@ document.addEventListener('keyup', (e) => {
     keysPressed[e.key.toLowerCase()] = false;
 });
 
-function updateCamera() {
-    if (keysPressed['w']) cameraY -= cameraSpeed;
-    if (keysPressed['s']) cameraY += cameraSpeed;
-    if (keysPressed['a']) cameraX -= cameraSpeed;
-    if (keysPressed['d']) cameraX += cameraSpeed;
+// Prevent right-click context menu on canvas
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-    // Clamp camera to bounds
-    cameraX = Math.max(0, Math.min(numCols - visibleCols, cameraX));
-    cameraY = Math.max(0, Math.min(numRows - visibleRows, cameraY));
+// Mouse clicks for break/place blocks
+canvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const gridX = Math.floor(cameraX + mouseX / blockSize);
+    const gridY = Math.floor(cameraY + mouseY / blockSize);
+
+    if (gridX < 0 || gridX >= numCols || gridY < 0 || gridY >= numRows) return;
+
+    if (e.button === 0) { // left click = break
+        if (!isPlayerOccupying(gridX, gridY)) {
+            gameGrid[gridY][gridX] = 0;
+        }
+    } else if (e.button === 2) { // right click = place
+        if (!isPlayerOccupying(gridX, gridY)) {
+            gameGrid[gridY][gridX] = 1;
+        }
+    }
+});
+
+// Helper function to prevent breaking/placing blocks inside the player
+function isPlayerOccupying(x, y) {
+    return (
+        x >= Math.floor(player.x) &&
+        x < Math.floor(player.x + player.width) &&
+        y >= Math.floor(player.y) &&
+        y < Math.floor(player.y + player.height)
+    );
 }
+
+function isSolid(x, y) {
+    const col = Math.floor(x);
+    const row = Math.floor(y);
+    return gameGrid[row]?.[col] === 1;
+}
+
+function updatePlayer() {
+    // Horizontal movement
+    if (keysPressed['a']) player.vx = -player.speed;
+    else if (keysPressed['d']) player.vx = player.speed;
+    else player.vx = 0;
+
+    // Jump
+    if (keysPressed[' '] && player.grounded) {
+        player.vy = player.jumpPower;
+        player.grounded = false;
+    }
+
+    // Gravity
+    player.vy += player.gravity;
+
+// --- Horizontal collision ---
+    const nextX = player.x + player.vx;
+    const collisionLeft = isSolid(nextX, player.y) || isSolid(nextX, player.y + player.height - 0.1);
+    const collisionRight = isSolid(nextX + player.width, player.y) || isSolid(nextX + player.width, player.y + player.height - 0.1);
+
+    if (player.vx < 0 && !collisionLeft) {
+        player.x = nextX;
+    } else if (player.vx > 0 && !collisionRight) {
+        player.x = nextX;
+    } else {
+        // Collision on X axis, stop horizontal velocity
+        player.vx = 0;
+    }
+
+    // --- Vertical collision ---
+    const nextY = player.y + player.vy;
+
+    if (!isSolid(player.x, nextY + player.height) && !isSolid(player.x + player.width - 0.1, nextY + player.height)) {
+        // No collision below, falling or jumping
+        player.y = nextY;
+        player.grounded = false;
+    } else {
+        // Landed on ground or hit ceiling
+        player.vy = 0;
+        player.grounded = true;
+
+        // Snap player exactly on top of block
+        const blockRow = Math.floor(nextY + player.height);
+        player.y = blockRow - player.height;
+    }
+    // Clamp within map bounds
+    player.x = Math.max(0, Math.min(numCols - player.width, player.x));
+    player.y = Math.max(0, Math.min(numRows - player.height, player.y));
+}
+
 
 
 
@@ -123,17 +218,42 @@ const visibleRows = 9;
 const scale = 0.2;
 
 
+
+
+
+
+
 for (let i = 0; i < numRows; i++) {
     for (let j = 0; j < numCols; j++) {
         const value = noise.perlin2(j * scale, i * scale);
         gameGrid[i][j] = value > 0 ? 1 : 0;
 
+
         if (i < 6) gameGrid[i][j] = 0;
     }
 }
 
+
+
+
+function drawPlayer() {
+    const screenX = (player.x - cameraX) * blockSize;
+    const screenY = (player.y - cameraY) * blockSize;
+
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(screenX, screenY, player.width * blockSize, player.height * blockSize);
+}
+
 function drawGameGrid() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    cameraX = player.x - visibleCols / 2;
+    cameraY = player.y - visibleRows / 2;
+
+   // Clamp to map edges
+    cameraX = Math.max(0, Math.min(numCols - visibleCols, cameraX));
+    cameraY = Math.max(0, Math.min(numRows - visibleRows, cameraY));
+
 
     for (let i = 0; i < visibleRows; i++) {
         for (let j = 0; j < visibleCols; j++) {
@@ -150,9 +270,12 @@ function drawGameGrid() {
     }
 }
 
+
+
 function gameLoop() {
-    updateCamera();
+    updatePlayer();
     drawGameGrid(); // <-- CALL the function
+    drawPlayer();
     requestAnimationFrame(gameLoop);
 }
 
